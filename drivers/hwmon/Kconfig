@@ -1459,6 +1459,16 @@ config SENSORS_RASPBERRYPI_HWMON
 	  This driver can also be built as a module. If so, the module
 	  will be called raspberrypi-hwmon.
 
+config SENSORS_SBTSI
+	tristate "Emulated SB-TSI temperature sensor"
+	depends on I2C
+	help
+	  If you say yes here you get support for emulated temperature
+	  sensors on AMD SoCs with SB-TSI interface connected to a BMC device.
+
+	  This driver can also be built as a module. If so, the module will
+	  be called sbtsi_temp.
+
 config SENSORS_SHT15
 	tristate "Sensiron humidity and temperature sensors. SHT15 and compat."
 	depends on GPIOLIB || COMPILE_TEST
@@ -2043,6 +2053,31 @@ config SENSORS_XGENE
 	help
 	  If you say yes here you get support for the temperature
 	  and power sensors for APM X-Gene SoC.
+
+config SENSORS_GXP_FAN_CTRL
+	tristate "GXP Fan Control driver"
+	depends on ARCH_HPE_GXP
+	help
+	  If you say yes here you get support for GXP fan control function via CPLD.
+
+config SENSORS_GXP_CORETEMP
+	tristate "GXP Core Temp driver"
+	depends on ARCH_HPE_GXP
+	help
+	  If you say yes here you get support for GXP core temp function
+
+config SENSORS_GXP_PSU
+	tristate "GXP PSU driver"
+	depends on ARCH_HPE_GXP
+	help
+	  If you say yes here you get support for GXP psu function
+
+config SENSORS_GXP_POWER
+	tristate "GXP POWER driver"
+	depends on ARCH_HPE_GXP
+	help
+	  If you say yes here you get support for GXP power function
+
 
 if ACPI
 
