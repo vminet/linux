@@ -151,6 +151,11 @@ config I2C_SLAVE_MQUEUE_QUEUE_SIZE
 	help
 	  This number MUST be power of 2.
 
+config I2C_PERIPH_GXP_ACM
+	tristate "HPE GXP Apollo Chassis Manager driver"
+	help
+	  Support ACM block transfer protocols over I2c.
+
 endif
 
 config I2C_DEBUG_CORE
