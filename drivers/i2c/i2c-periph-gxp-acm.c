@@ -7,8 +7,6 @@
  * published by the Free Software Foundation.
  */
 
-#define DEBUG
-
 #include <linux/i2c.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -557,7 +555,6 @@ static ssize_t gxp_acm_debug_store(struct device *dev,
 			const char *buf, size_t count)
 {
 	struct drvdata_gxp_acm *drvdata = dev_get_drvdata(dev);
-	int rc;
 
 	if (!strncmp(buf, "clearIRQ", 8)) {
 		gpiod_set_value(drvdata->irq_n, 1);
