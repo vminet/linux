@@ -7,8 +7,6 @@
  * published by the Free Software Foundation.
  */
 
-#define DEBUG
-
 #include <linux/i2c.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -229,7 +227,6 @@ static int gxp_acm_write_packet_done(struct drvdata_gxp_acm *drvdata)
 			drvdata->in_blocks_tail = 0;
 
 		kernfs_notify(drvdata->kn_in);
-		pr_devel("[%s] signle packet done block#=%d len=%d inst=%d\n", __func__, block_number, in_block_length, in_block->header.instruction);
 		if ((packet->header.ctrl_bits.resp_not_req == 0) && (packet->header.instruction == ACM_BLOCK_WR)) {
 			//response for write block instruction only, the read block instruction is responsed by user space.
 			gxp_acm_write_resp(drvdata, block_number, packet->header.instruction, rc);
@@ -269,7 +266,6 @@ static int gxp_acm_write_packet_done(struct drvdata_gxp_acm *drvdata)
 			drvdata->in_blocks_tail = 0;
 
 		kernfs_notify(drvdata->kn_in);
-		pr_devel("[%s] multi packet done block number=%d len=%d\n", __func__, block_number, in_block_length);
 		if (packet->header.ctrl_bits.resp_not_req == 0)
 			gxp_acm_write_resp(drvdata, block_number, packet->header.instruction, rc);
 	}
@@ -285,7 +281,6 @@ static int gxp_acm_out_start(struct drvdata_gxp_acm *drvdata)
 	int out_block_length = be16_to_cpu(out_block->header.length);
 	int block_number = (out_block->payload[0]<<8) |  out_block->payload[1];
 
-	pr_devel("[%s] out_block->length = 0x%04x instruction=%d\n", __func__, out_block_length, out_block->header.instruction);
 	if (out_block_length == 0)
 		return -EIO;
 
@@ -402,7 +397,6 @@ static int gxp_acm_cb(struct i2c_client *client,
 	switch (event) {
 	case I2C_SLAVE_WRITE_REQUESTED:
 		if (drvdata->in_blocks_len > 0 && drvdata->in_blocks_head == drvdata->in_blocks_tail) {
-			pr_devel("[%s] I2C_SLAVE_WRITE_REQUESTED drop block due to no free buf\n", __func__);
 			drvdata->in_block_drop_cnt++;
 			return -ENOMEM;
 		}
@@ -410,28 +404,20 @@ static int gxp_acm_cb(struct i2c_client *client,
 		drvdata->in_block_recv_len = 0;
 		drvdata->buf_len = 0;
 		drvdata->buf_wr_resp = 0;
-
-		pr_devel("[%s] I2C_SLAVE_WRITE_REQUESTED\n", __func__);
 		break;
 
 	case I2C_SLAVE_WRITE_RECEIVED:
 		if (drvdata->in_blocks_len > 0 && drvdata->in_blocks_head == drvdata->in_blocks_tail) {
-			pr_devel("[%s] I2C_SLAVE_WRITE_REQUESTED drop block due to no free buf\n", __func__);
 			drvdata->in_block_drop_cnt++;
 			return -ENOMEM;
 		}
 
 		if (drvdata->buf_len >= ACM_PACKET_SIZE) {
-			pr_devel("[%s] I2C_SLAVE_WRITE_RECEIVED out of buf val=0x%02x\n", __func__, *val);
 			drvdata->in_block_drop_cnt++;
 			return -ENOMEM;
 		}
 
 		drvdata->buf[drvdata->buf_len++] = *val;
-		if (drvdata->buf_len <= 7) {
-			//first 7 bytes are header
-			pr_devel("[%s] I2C_SLAVE_WRITE_RECEIVED val[%d]=0x%02x\n", __func__, drvdata->buf_len - 1, *val);
-		}
 		break;
 
 	case I2C_SLAVE_READ_PROCESSED:
@@ -440,8 +426,6 @@ static int gxp_acm_cb(struct i2c_client *client,
 			*val = drvdata->buf[drvdata->buf_idx];
 		else
 			*val = 0;
-
-		pr_devel("[%s] I2C_SLAVE_READ_PROCESSED val=0x%02x\n", __func__, *val);
 		break;
 
 	case I2C_SLAVE_READ_REQUESTED:
@@ -449,25 +433,18 @@ static int gxp_acm_cb(struct i2c_client *client,
 			*val = drvdata->buf[drvdata->buf_idx];
 		else
 			*val = 0;
-
-		pr_devel("[%s] I2C_SLAVE_READ_REQUESTED val=0x%02x\n", __func__, *val);
 		break;
 
 	case I2C_SLAVE_STOP:
 		if (packet->header.src_addr == ACM_ADDR) {
 			if (drvdata->in_blocks_len > 0 && drvdata->in_blocks_head == drvdata->in_blocks_tail) {
-				pr_devel("[%s] I2C_SLAVE_WRITE_REQUESTED drop block due to no free buf\n", __func__);
 				drvdata->in_block_drop_cnt++;
 			} else {
 				ret = gxp_acm_write_packet_done(drvdata);
-				pr_devel("[%s] I2C_SLAVE_STOP wd ret=0x%02x\n", __func__, ret);
 				drvdata->in_block_recv_cnt++;
 			}
 		} else if (packet->header.src_addr == GXP_ADDR) {
 			ret = gxp_acm_read_packet_done(drvdata);
-			pr_devel("[%s] I2C_SLAVE_STOP rd ret=0x%02x\n", __func__, ret);
-		} else {
-			pr_devel("[%s] I2C_SLAVE_STOP\n", __func__);
 		}
 
 		break;
@@ -529,8 +506,6 @@ static ssize_t gxp_acm_bin_out_read(struct file *filp, struct kobject *kobj,
 	struct acm_block *out_block = (struct acm_block *)drvdata->out_block;
 	u16 out_block_length = be16_to_cpu(out_block->header.length);
 
-	pr_devel("[%s] off=%lld count=%zu out_block_length=0x%04x\n", __func__, off, count, out_block_length);
-
 	if (off >= (out_block_length + sizeof(struct acm_block_header)))
 		return 0;
 
@@ -548,12 +523,8 @@ static ssize_t gxp_acm_bin_out_write(struct file *filp, struct kobject *kobj,
 	struct acm_block *out_block = (struct acm_block *)drvdata->out_block;
 	u16 out_block_length;
 
-	pr_devel("[%s] off=%lld count=%zu\n", __func__, off, count);
-
-	if (drvdata->out_block_valid || drvdata->buf_wr_resp) {
-		pr_devel("[%s] out_block is not empty\n", __func__);
+	if (drvdata->out_block_valid || drvdata->buf_wr_resp)
 		return -EAGAIN;
-	}
 
 	memcpy(&drvdata->out_block[off], buf, count);
 	out_block_length = be16_to_cpu(out_block->header.length);
@@ -584,7 +555,6 @@ static ssize_t gxp_acm_debug_store(struct device *dev,
 			const char *buf, size_t count)
 {
 	struct drvdata_gxp_acm *drvdata = dev_get_drvdata(dev);
-	int rc;
 
 	if (!strncmp(buf, "clearIRQ", 8)) {
 		gpiod_set_value(drvdata->irq_n, 1);
