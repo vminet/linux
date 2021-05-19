@@ -1,6 +1,4 @@
 /dts-v1/;
-#include <dt-bindings/i2c/i2c.h>
-
 / {
   #address-cells = <1>;
   #size-cells = <1>;
@@ -97,6 +95,20 @@
       vuart_cfg = <&vuart_a_cfg>;
     };
 
+    usb0: ehci@cefe0000 {
+      compatible = "generic-ehci";
+      reg = <0xcefe0000 0x100>;
+      interrupts = <7>;
+      interrupt-parent = <&vic0>;
+    };
+
+    usb1: ohci@cefe0100 {
+      compatible = "generic-ohci";
+      reg = <0xcefe0100 0x110>;
+      interrupts = <6>;
+      interrupt-parent = <&vic0>;
+    };
+
     spifi0: spifi@c0000200 {
       compatible = "hpe,gxp-spifi";
       reg = <0xc0000200 0x80>, <0xc000c000 0x100>, <0xf8000000 0x8000000>;
@@ -168,8 +180,6 @@
       reg = <0xd0000000 0x80000>;
       bank-width = <1>;
       erase-size =<1>;
-      #address-cells = <1>;
-      #size-cells = <1>;
       partition@0 {
         label = "host-reserved";
         reg = <0x0 0x10000>;
@@ -209,7 +219,6 @@
     i2c0: i2c@c0002000 {
       compatible = "hpe,gxp-i2c";
       reg = <0xc0002000 0x70>;
-      bus-frequency = <100000>;
       interrupts = <9>;
       interrupt-parent = <&vic0>;
       i2cg-handle = <&i2cg>;
@@ -220,7 +229,6 @@
     i2c1: i2c@c0002100 {
       compatible = "hpe,gxp-i2c";
       reg = <0xc0002100 0x70>;
-      bus-frequency = <100000>;
       interrupts = <9>;
       interrupt-parent = <&vic0>;
       i2cg-handle = <&i2cg>;
@@ -231,15 +239,14 @@
     i2c2: i2c@c0002200 {
       compatible = "hpe,gxp-i2c";
       reg = <0xc0002200 0x70>;
-      bus-frequency = <100000>;
       interrupts = <9>;
       interrupt-parent = <&vic0>;
       i2cg-handle = <&i2cg>;
       #address-cells = <1>;
       #size-cells = <0>;
 
-      at24c02@50 {
-        compatible = "at24,24c02";
+      24c02@50 {
+        compatible = "atmel,24c02";
         pagesize = <8>;
         reg = <0x50>;
       };
@@ -248,23 +255,16 @@
     i2c3: i2c@c0002300 {
       compatible = "hpe,gxp-i2c";
       reg = <0xc0002300 0x70>;
-      bus-frequency = <100000>;
       interrupts = <9>;
       interrupt-parent = <&vic0>;
       i2cg-handle = <&i2cg>;
       #address-cells = <1>;
       #size-cells = <0>;
-      acm: acm@10 {
-        compatible = "hpe,gxp-acm";
-        reg = <(0x08 | I2C_OWN_SLAVE_ADDRESS)>;
-        irq_n-gpios = <&xreg 72 0>;
-      };
     };
 
     i2c4: i2c@c0002400 {
       compatible = "hpe,gxp-i2c";
       reg = <0xc0002400 0x70>;
-      bus-frequency = <100000>;
       interrupts = <9>;
       interrupt-parent = <&vic0>;
       i2cg-handle = <&i2cg>;
@@ -275,18 +275,14 @@
     i2c5: i2c@c0002500 {
       compatible = "hpe,gxp-i2c";
       reg = <0xc0002500 0x70>;
-      bus-frequency = <100000>;
       interrupts = <9>;
       interrupt-parent = <&vic0>;
       i2cg-handle = <&i2cg>;
-      #address-cells = <1>;
-      #size-cells = <0>;
     };
 
     i2c6: i2c@c0002600 {
       compatible = "hpe,gxp-i2c";
       reg = <0xc0002600 0x70>;
-      bus-frequency = <100000>;
       interrupts = <9>;
       interrupt-parent = <&vic0>;
       i2cg-handle = <&i2cg>;
@@ -297,18 +293,26 @@
     i2c7: i2c@c0002700 {
       compatible = "hpe,gxp-i2c";
       reg = <0xc0002700 0x70>;
-      bus-frequency = <100000>;
       interrupts = <9>;
       interrupt-parent = <&vic0>;
       i2cg-handle = <&i2cg>;
       #address-cells = <1>;
       #size-cells = <0>;
+
+      psu1: psu@58 {
+        compatible = "hpe,gxp-psu";
+        reg = <0x58>;
+      };
+
+      psu2: psu@59 {
+        compatible = "hpe,gxp-psu";
+        reg = <0x59>;
+      };
     };
 
     i2c8: i2c@c0002800 {
       compatible = "hpe,gxp-i2c";
       reg = <0xc0002800 0x70>;
-      bus-frequency = <100000>;
       interrupts = <9>;
       interrupt-parent = <&vic0>;
       i2cg-handle = <&i2cg>;
@@ -319,7 +323,6 @@
     i2c9: i2c@c0002900 {
       compatible = "hpe,gxp-i2c";
       reg = <0xc0002900 0x70>;
-      bus-frequency = <100000>;
       interrupts = <9>;
       interrupt-parent = <&vic0>;
       i2cg-handle = <&i2cg>;
@@ -397,7 +400,7 @@
       #address-cells = <1>;
       #size-cells = <0>;
       ext_phy0: ethernt-phy@0 {
-        compatible = "marvell,88e1514","ethernet-phy-ieee802.3-c22";
+        compatible = "marvell,88e1415","ethernet-phy-ieee802.3-c22";
         phy-mode = "sgmii";
         reg = <0>;
       };
@@ -432,7 +435,7 @@
 
     umac1: umac@c0005000 {
       compatible = "hpe, gxp-umac";
-      /* use-ncsi; */
+      use-ncsi;
       reg = <0xc0005000 0x80>;
       interrupts = <11>;
       interrupt-parent = <&vic0>;
@@ -473,11 +476,11 @@
       "", "", "", "", "", "", "POWER", "HEARTBEAT", "FAN1_INST", "FAN2_INST",
       "FAN3_INST", "FAN4_INST", "FAN5_INST", "FAN6_INST", "FAN7_INST", "FAN8_INST", "FAN9_INST", "FAN10_INST", "FAN11_INST", "FAN12_INST",
       "FAN13_INST", "FAN14_INST", "FAN15_INST", "FAN16_INST", "FAN1_FAIL", "FAN2_FAIL", "FAN3_FAIL", "FAN4_FAIL", "FAN5_FAIL", "FAN6_FAIL",
-      "FAN7_FAIL", "FAN8_FAIL", "FAN9_FAIL", "FAN10_FAIL", "FAN11_FAIL", "FAN12_FAIL", "FAN13_FAIL", "FAN14_FAIL", "FAN15_FAIL", "FAN1_6FAIL",
-      "FAN1_ID", "FAN2_ID", "FAN3_ID", "FAN4_ID", "FAN5_ID", "FAN6_ID", "FAN7_ID", "FAN8_ID", "FAN9_ID", "FAN10_ID",
-      "FAN11_ID", "FAN12_ID", "FAN13_ID", "FAN14_ID", "FAN15_ID", "FAN16_ID", "IDENTIFY", "HEALTH_RED", "HEALTH_AMBER", "POWER_BUTTON",
+      "FAN7_FAIL", "FAN8_FAIL", "FAN9_FAIL", "FAN10_FAIL", "FAN11_FAIL", "FAN12_FAIL", "FAN13_FAIL", "FAN14_FAIL", "FAN15_FAIL", "FAN16_FAIL",
+      "", "", "", "", "", "", "", "", "", "",
+      "", "", "", "", "", "", "IDENTIFY", "HEALTH_RED", "HEALTH_AMBER", "POWER_BUTTON",
       "", "SIO_POWER_GOOD", "NMI_BUTTON", "RESET_BUTTON", "SIO_S5", "SIO_ONCONTROL", "", "", "", "",
-      "ACM_FORCE_OFF", "ACM_REMOVED", "ACM_REQ_N", "", "", "", "", "", "", "",
+      "", "", "", "", "", "", "", "", "", "",
       "", "", "", "", "", "", "", "", "", "",
       "", "", "", "", "", "", "", "", "", "";
     };
@@ -492,23 +495,37 @@
     fn2: fn2@80200000 {
       compatible = "hpe,gxp-fn2", "simple-mfd", "syscon";
       reg = <0x80200000 0x100000>;
+      xreg_handle = <&xreg>;
       interrupts = <0>;
       interrupt-parent = <&vic1>;
+      #gpio-cells = <2>;
+      gpio-line-names =
+      "POWER_OUT", "PS_PWROK", "PCIERST", "POST_COMPLETE", "", "", "", "", "", "",
+      "", "", "", "", "", "", "", "", "", "",
+      "", "", "", "", "", "", "", "", "", "",
+      "", "", "", "", "", "", "", "", "", "",
+      "", "", "", "", "", "", "", "", "", "",
+      "", "", "", "", "", "", "", "", "", "",
+      "", "", "", "", "", "", "", "", "", "",
+      "", "", "", "", "", "", "", "", "", "",
+      "", "", "", "", "", "", "", "", "", "",
+      "", "", "", "", "", "", "", "", "", "";
+      chif {
+        compatible = "hpe,gxp-chif";
+        interrupts = <12>;
+      };
     };
 
     csm: csm@80000000 {
       compatible = "hpe,gxp-csm", "simple-mfd", "syscon";
-      reg = <0x80000000 0x100000>;
+      reg = <0x80000000 0x400>;
     };
 
     gpio: gpio@0 {
       compatible = "hpe,gxp-gpio";
       #gpio-cells = <2>;
       csm_handle = <&csm>;
-      fn2_handle = <&fn2>;
-      xreg_handle = <&xreg>;
       vuhc0_handle = <&vuhc0>;
-      interrupts-extended = <&vic0 26>, <&vic1 0>;
       gpio-line-names =
       "", "", "", "", "", "", "", "", "", "",
       "", "", "", "", "", "", "", "", "", "",
@@ -529,8 +546,8 @@
       "", "", "", "", "", "", "", "", "", "",
       "", "", "", "", "", "", "", "", "", "",
       "", "", "", "", "", "", "", "", "", "",
-      "", "", "RESET_OUT", "NMI_OUT", "POST_COMPLETE", "", "", "", "", "",
-      "POWER_OUT", "PS_PWROK", "", "", "", "", "", "", "", "",
+      "", "", "RESET_OUT", "NMI_OUT", "", "", "", "", "", "",
+      "", "", "", "", "", "", "", "", "", "",
       "", "", "", "", "", "", "", "", "", "",
       "", "", "", "", "", "", "", "", "", "",
       "", "", "", "", "", "", "", "", "", "",
@@ -579,108 +596,6 @@
         label = "ID Button";
         linux,code = <200>;
         gpios = <&xreg 60 1>;
-      };
-    };
-
-    presence: presence {
-      compatible = "gpio-keys-polled";
-      poll-interval = <100>;
-      autorepeat;
-
-      fan1 {
-        label = "fan1 presence";
-        linux,code = <200>;
-        gpios = <&xreg 8 0>;
-      };
-
-      fan2 {
-        label = "fan2 presence";
-        linux,code = <201>;
-        gpios = <&xreg 9 0>;
-      };
-
-      fan3 {
-        label = "fan3 presence";
-        linux,code = <202>;
-        gpios = <&xreg 10 0>;
-      };
-
-      fan4 {
-        label = "fan4 presence";
-        linux,code = <203>;
-        gpios = <&xreg 11 0>;
-      };
-
-      fan5 {
-        label = "fan5 presence";
-        linux,code = <204>;
-        gpios = <&xreg 12 0>;
-      };
-
-      fan6 {
-        label = "fan6 presence";
-        linux,code = <205>;
-        gpios = <&xreg 13 0>;
-      };
-
-      fan7 {
-        label = "fan7 presence";
-        linux,code = <206>;
-        gpios = <&xreg 14 0>;
-      };
-
-      fan8 {
-        label = "fan8 presence";
-        linux,code = <207>;
-        gpios = <&xreg 15 0>;
-      };
-
-      fan9 {
-        label = "fan9 presence";
-        linux,code = <208>;
-        gpios = <&xreg 16 0>;
-      };
-
-      fan10 {
-        label = "fan10 presence";
-        linux,code = <209>;
-        gpios = <&xreg 17 0>;
-      };
-
-      fan11 {
-        label = "fan11 presence";
-        linux,code = <210>;
-        gpios = <&xreg 18 0>;
-      };
-
-      fan12 {
-        label = "fan12 presence";
-        linux,code = <211>;
-        gpios = <&xreg 19 0>;
-      };
-
-      fan13 {
-        label = "fan13 presence";
-        linux,code = <212>;
-        gpios = <&xreg 20 0>;
-      };
-
-      fan14 {
-        label = "fan14 presence";
-        linux,code = <213>;
-        gpios = <&xreg 21 0>;
-      };
-
-      fan15 {
-        label = "fan15 presence";
-        linux,code = <214>;
-        gpios = <&xreg 22 0>;
-      };
-
-      fan16 {
-        label = "fan16 presence";
-        linux,code = <215>;
-        gpios = <&xreg 23 0>;
       };
     };
 
@@ -734,6 +649,18 @@
     coretemp: coretemp@c0000130 {
       compatible = "hpe,gxp-coretemp";
       reg = <0xc0000130 0x8>;
+    };
+
+    syspower: syspower {
+      compatible = "hpe,gxp-power";
+      psu_phandle = <&psu1>, <&psu2>;
+    };
+
+    peci: peci@80000400 {
+      compatible = "hpe,gxp-peci";
+      reg = <0x80000400 0x200>;
+      interrupts = <22>;
+      interrupt-parent = <&vic1>;
     };
   };
 

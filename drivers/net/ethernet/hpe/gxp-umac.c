@@ -254,7 +254,7 @@ static int umac_phy_fixup(struct phy_device *phy_dev)
 	value |= 0x01;
 	phy_write(phy_dev, PHY_88E1514_GENERAL_CONTROL_REG1, value);
 
-	//preform mode reset by setting bit 15 in general_control_reg1
+	//perform mode reset by setting bit 15 in general_control_reg1
 	phy_write(phy_dev, PHY_88E1514_GENERAL_CONTROL_REG1, value | 0x8000);
 
 	do {

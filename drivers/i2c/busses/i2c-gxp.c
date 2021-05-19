@@ -397,8 +397,6 @@ static bool gxp_i2c_slave_irq_handler(struct gxp_i2c_drvdata *drvdata)
 {
 	void __iomem *base = drvdata->base;
 	uint16_t value;
-	uint8_t i2cevterr;
-	uint8_t i2cstat;
 	uint8_t buf;
 	int ret;
 

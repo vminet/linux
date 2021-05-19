@@ -228,7 +228,7 @@ static int gxp_acm_write_packet_done(struct drvdata_gxp_acm *drvdata)
 
 		kernfs_notify(drvdata->kn_in);
 		if ((packet->header.ctrl_bits.resp_not_req == 0) && (packet->header.instruction == ACM_BLOCK_WR)) {
-			//response for write block instruction only, the read block instruction is responsed by user space.
+			//response for write block instruction only, the read block instruction is responded by user space.
 			gxp_acm_write_resp(drvdata, block_number, packet->header.instruction, rc);
 		}
 	} else if (packet->header.ctrl_bits.start && !packet->header.ctrl_bits.end) {
@@ -404,6 +404,7 @@ static int gxp_acm_cb(struct i2c_client *client,
 		drvdata->in_block_recv_len = 0;
 		drvdata->buf_len = 0;
 		drvdata->buf_wr_resp = 0;
+
 		break;
 
 	case I2C_SLAVE_WRITE_RECEIVED:
@@ -418,6 +419,9 @@ static int gxp_acm_cb(struct i2c_client *client,
 		}
 
 		drvdata->buf[drvdata->buf_len++] = *val;
+		//if (drvdata->buf_len <= 7) {
+			//first 7 bytes are header
+		//}
 		break;
 
 	case I2C_SLAVE_READ_PROCESSED:
@@ -426,6 +430,7 @@ static int gxp_acm_cb(struct i2c_client *client,
 			*val = drvdata->buf[drvdata->buf_idx];
 		else
 			*val = 0;
+
 		break;
 
 	case I2C_SLAVE_READ_REQUESTED:
@@ -433,6 +438,7 @@ static int gxp_acm_cb(struct i2c_client *client,
 			*val = drvdata->buf[drvdata->buf_idx];
 		else
 			*val = 0;
+
 		break;
 
 	case I2C_SLAVE_STOP:
@@ -456,7 +462,7 @@ static int gxp_acm_cb(struct i2c_client *client,
 	return 0;
 }
 
-static ssize_t gxp_acm_bin_in_read(struct file *filp, struct kobject *kobj,
+static ssize_t gxp_acm_bin_in_read(struct file *flip, struct kobject *kobj,
 		struct bin_attribute *attr, char *buf, loff_t off, size_t count)
 {
 	// user layer read "bin_in" for received block data from ACM
@@ -483,7 +489,7 @@ static ssize_t gxp_acm_bin_in_read(struct file *filp, struct kobject *kobj,
 	return count;
 }
 
-static ssize_t gxp_acm_bin_in_write(struct file *filp, struct kobject *kobj,
+static ssize_t gxp_acm_bin_in_write(struct file *flip, struct kobject *kobj,
 		struct bin_attribute *attr, char *buf, loff_t off, size_t count)
 {
 	// user layer do dummy write "bin_in" to in_block is ready to receive new block from ACM
@@ -499,7 +505,7 @@ static ssize_t gxp_acm_bin_in_write(struct file *filp, struct kobject *kobj,
 	return count;
 }
 
-static ssize_t gxp_acm_bin_out_read(struct file *filp, struct kobject *kobj,
+static ssize_t gxp_acm_bin_out_read(struct file *flip, struct kobject *kobj,
 		struct bin_attribute *attr, char *buf, loff_t off, size_t count)
 {
 	struct drvdata_gxp_acm *drvdata = dev_get_drvdata(kobj_to_dev(kobj));
@@ -516,12 +522,13 @@ static ssize_t gxp_acm_bin_out_read(struct file *filp, struct kobject *kobj,
 	return count;
 }
 
-static ssize_t gxp_acm_bin_out_write(struct file *filp, struct kobject *kobj,
+static ssize_t gxp_acm_bin_out_write(struct file *flip, struct kobject *kobj,
 		struct bin_attribute *attr, char *buf, loff_t off, size_t count)
 {
 	struct drvdata_gxp_acm *drvdata = dev_get_drvdata(kobj_to_dev(kobj));
 	struct acm_block *out_block = (struct acm_block *)drvdata->out_block;
 	u16 out_block_length;
+
 
 	if (drvdata->out_block_valid || drvdata->buf_wr_resp)
 		return -EAGAIN;
@@ -686,5 +693,5 @@ static struct i2c_driver gxp_acm_driver = {
 module_i2c_driver(gxp_acm_driver);
 
 MODULE_AUTHOR("Gilbert Chen <gilbert.chen@hpe.com>");
-MODULE_DESCRIPTION("HPE GXP Apollo Chassis Mananger driver");
+MODULE_DESCRIPTION("HPE GXP Apollo Chassis Manager driver");
 MODULE_LICENSE("GPL v2");

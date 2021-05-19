@@ -8,214 +8,231 @@
  */
 
 #include <linux/device.h>
-#include <linux/sysfs.h>
+#include <linux/gpio.h>
 #include <linux/io.h>
+#include <linux/irq.h>
+#include <linux/interrupt.h>
 #include <linux/mutex.h>
-
 #include <linux/mfd/core.h>
+#include <linux/mfd/syscon.h>
 #include <linux/module.h>
 #include <linux/of_device.h>
-#include <linux/interrupt.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/reset.h>
+#include <linux/sysfs.h>
 
 #include "gxp-soclib.h"
 
+#define GPIO_DIR_OUT 0
+#define GPIO_DIR_IN  1
+
 #define FN2_VPBTN	0x46
 #define FN2_SEVSTAT	0x70
+#define PGOOD_MASK 0x01
+#define PERST_MASK 0x02
 #define FN2_SEVMASK	0x74
 
+enum xreg_gpio_pn {
+	VPBTN = 0,			//out
+	PGOOD,					//in
+	PERST,					//in
+	POST_COMPLETE,	//in
+};
+
 struct gxp_fn2_drvdata {
-	struct platform_device *pdev;
-	struct device *dev;
 	void __iomem *base;
-	struct mutex mutex;
+	struct regmap *fn2_map;
+	struct regmap *xreg_map;
+	struct gpio_chip gpio_chip;
 	int irq;
-	struct work_struct irq_work;
 };
 
-static ssize_t vpbtn_show(struct device *dev,
-			struct device_attribute *attr, char *buf)
+static int gxp_fn2_gpio_get(struct gpio_chip *chip, unsigned int offset)
 {
-	struct gxp_fn2_drvdata *drvdata = dev_get_drvdata(dev);
-	unsigned int value;
-	ssize_t ret;
+	struct gxp_fn2_drvdata *drvdata = dev_get_drvdata(chip->parent);
+	unsigned int val;
+	int ret = 0;
 
-	mutex_lock(&drvdata->mutex);
+	switch (offset) {
+	case PGOOD:
+		//offset 0x70 bit 24
+		regmap_read(drvdata->fn2_map, FN2_SEVSTAT, &val);
+		ret = (val&BIT(24))?1:0;
+		break;
+	case PERST:
+		//offset 0x70 bit 25
+		regmap_read(drvdata->fn2_map, FN2_SEVSTAT, &val);
+		ret = (val&BIT(25))?1:0;
+		break;
+	case POST_COMPLETE:
+		//todo: read from sram
+	default:
+		break;
+	}
 
-	value = readb(drvdata->base + FN2_VPBTN);
-	ret = sprintf(buf, "0x%02x", value);
-
-	mutex_unlock(&drvdata->mutex);
 	return ret;
 }
 
-static ssize_t vpbtn_store(struct device *dev, struct device_attribute *attr,
-			const char *buf, size_t count)
+static void gxp_fn2_gpio_set(struct gpio_chip *chip, unsigned int offset,
+		int value)
 {
-	struct gxp_fn2_drvdata *drvdata = dev_get_drvdata(dev);
-	unsigned int value;
-	int rc;
+	struct gxp_fn2_drvdata *drvdata = dev_get_drvdata(chip->parent);
 
-	rc = kstrtouint(buf, 0, &value);
-	if (rc < 0)
-		return -EINVAL;
-
-	mutex_lock(&drvdata->mutex);
-
-	writeb((value > 0)?0x01:0x00, drvdata->base + FN2_VPBTN);
-
-	mutex_unlock(&drvdata->mutex);
-	return count;
+	switch (offset) {
+	case VPBTN:
+		//offset 0xF=0x04
+		regmap_update_bits(drvdata->xreg_map, 0x0c,
+				0xFF000000, 0x04000000);
+		//offset 0x44 bit 16
+		regmap_update_bits(drvdata->fn2_map, 0x44, BIT(16),
+				value == 0?0:BIT(16));
+		break;
+	default:
+		break;
+	}
 }
-static DEVICE_ATTR_RW(vpbtn);
 
-static ssize_t se_status_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
+static int gxp_fn2_gpio_get_direction(struct gpio_chip *chip,
+		unsigned int offset)
 {
-	struct gxp_fn2_drvdata *drvdata = dev_get_drvdata(dev);
-	unsigned int value;
-	ssize_t ret;
+	int ret = GPIO_DIR_IN;
 
-	mutex_lock(&drvdata->mutex);
+	switch (offset) {
+	case VPBTN:
+		ret = GPIO_DIR_OUT;
+		break;
+	default:
+		break;
+	}
 
-	value = readl(drvdata->base + FN2_SEVSTAT);
-	ret = sprintf(buf, "0x%08x", value);
-
-	mutex_unlock(&drvdata->mutex);
 	return ret;
 }
-static DEVICE_ATTR_RO(se_status);
 
-static ssize_t host_power_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
+static int gxp_fn2_gpio_direction_input(struct gpio_chip *chip,
+		unsigned int offset)
 {
-	struct gxp_fn2_drvdata *drvdata = dev_get_drvdata(dev);
-	unsigned int value;
-	ssize_t ret;
+	int ret = -ENOTSUPP;
 
-	mutex_lock(&drvdata->mutex);
+	switch (offset) {
+	case PGOOD:
+	case PERST:
+	case POST_COMPLETE:
+		ret = 0;
+		break;
+	default:
+		break;
+	}
 
-	value = readl(drvdata->base + FN2_SEVSTAT);
-	//bit 24, PGOOD
-	if (value & 0x01000000)
-		ret = sprintf(buf, "on");
+	return ret;
+}
+
+static int gxp_fn2_gpio_direction_output(struct gpio_chip *chip,
+		unsigned int offset, int value)
+{
+	int ret = -ENOTSUPP;
+
+	switch (offset) {
+	case VPBTN:
+		gxp_fn2_gpio_set(chip, offset, value);
+		ret = 0;
+		break;
+	default:
+		break;
+	}
+
+	return ret;
+}
+
+static void gxp_fn2_gpio_irq_ack(struct irq_data *d)
+{
+	struct gpio_chip *chip = irq_data_get_irq_chip_data(d);
+	struct gxp_fn2_drvdata *drvdata = dev_get_drvdata(chip->parent);
+	unsigned int val;
+
+	// Read latched interrupt
+	regmap_read(drvdata->fn2_map, FN2_SEVSTAT, &val);
+
+	//Clear latched interrupt
+	regmap_update_bits(drvdata->fn2_map, FN2_SEVSTAT,
+			0xFFFF, 0xFFFF);
+}
+
+static void gxp_fn2_gpio_irq_set_mask(struct irq_data *d, bool set)
+{
+	struct gpio_chip *chip = irq_data_get_irq_chip_data(d);
+	struct gxp_fn2_drvdata *drvdata = dev_get_drvdata(chip->parent);
+
+	regmap_update_bits(drvdata->fn2_map, FN2_SEVMASK,
+			BIT(0), set == true ? BIT(0):0);
+}
+
+static void gxp_fn2_gpio_irq_mask(struct irq_data *d)
+{
+	gxp_fn2_gpio_irq_set_mask(d, false);
+}
+
+static void gxp_fn2_gpio_irq_unmask(struct irq_data *d)
+{
+	gxp_fn2_gpio_irq_set_mask(d, true);
+}
+
+static int gxp_fn2_gpio_set_type(struct irq_data *d, unsigned int type)
+{
+	if (type & IRQ_TYPE_LEVEL_MASK)
+		irq_set_handler_locked(d, handle_level_irq);
 	else
-		ret = sprintf(buf, "off");
+		irq_set_handler_locked(d, handle_edge_irq);
 
-	mutex_unlock(&drvdata->mutex);
-	return ret;
-}
-static DEVICE_ATTR_RO(host_power);
-
-static ssize_t se_mask_show(struct device *dev,
-			struct device_attribute *attr, char *buf)
-{
-	struct gxp_fn2_drvdata *drvdata = dev_get_drvdata(dev);
-	unsigned int value;
-	ssize_t ret;
-
-	mutex_lock(&drvdata->mutex);
-
-	value = readl(drvdata->base + FN2_SEVMASK);
-	ret = sprintf(buf, "0x%08x", value);
-
-	mutex_unlock(&drvdata->mutex);
-	return ret;
-}
-
-static ssize_t se_mask_store(struct device *dev,
-			struct device_attribute *attr,
-			const char *buf, size_t count)
-{
-	struct gxp_fn2_drvdata *drvdata = dev_get_drvdata(dev);
-	unsigned int value;
-	int rc;
-
-	rc = kstrtouint(buf, 0, &value);
-	if (rc < 0)
-		return -EINVAL;
-
-	mutex_lock(&drvdata->mutex);
-
-	writel(value, drvdata->base + FN2_SEVMASK);
-
-	mutex_unlock(&drvdata->mutex);
-	return count;
-
-}
-static DEVICE_ATTR_RW(se_mask);
-
-static struct attribute *fn2_attrs[] = {
-	&dev_attr_vpbtn.attr,
-	&dev_attr_se_status.attr,
-	&dev_attr_se_mask.attr,
-	&dev_attr_host_power.attr,
-	NULL,
-};
-ATTRIBUTE_GROUPS(fn2);
-
-static int sysfs_register(struct device *parent,
-			struct gxp_fn2_drvdata *drvdata)
-{
-	struct device *dev;
-
-	dev = device_create_with_groups(soc_class, parent, 0,
-					drvdata, fn2_groups, "fn2");
-	if (IS_ERR(dev))
-		return PTR_ERR(dev);
-	drvdata->dev = dev;
 	return 0;
 }
 
-static void fn2_irq_work(struct work_struct *ws)
-{
-	struct gxp_fn2_drvdata *drvdata =
-			container_of(ws, struct gxp_fn2_drvdata, irq_work);
-	char *envp[2];
-	char buf[128];
-	uint32_t value;
-
-
-	value = readl(drvdata->base + FN2_SEVSTAT);
-	writel(0xffffffff, drvdata->base + FN2_SEVSTAT);
-
-	if (value & 0x00000001) {
-		//system power change
-		if (value & 0x01000000) {
-			//power on
-			sprintf(buf, "HOST_POWER=on");
-			envp[0] = buf;
-			envp[1] = NULL;
-			kobject_uevent_env(&drvdata->dev->kobj,
-					KOBJ_CHANGE, envp);
-		} else {
-			//power off
-			sprintf(buf, "HOST_POWER=off");
-			envp[0] = buf;
-			envp[1] = NULL;
-			kobject_uevent_env(&drvdata->dev->kobj,
-					KOBJ_CHANGE, envp);
-		}
-	} else {
-		sprintf(buf, "SEVSTAT=0x%08x", value);
-		envp[0] = buf;
-		envp[1] = NULL;
-		kobject_uevent_env(&drvdata->dev->kobj, KOBJ_CHANGE, envp);
-	}
-	enable_irq(drvdata->irq);
-}
-
-static irqreturn_t fn2_irq_handle(int irq, void *_drvdata)
+static irqreturn_t gxp_fn2_irq_handle(int irq, void *_drvdata)
 {
 	struct gxp_fn2_drvdata *drvdata = (struct gxp_fn2_drvdata *)_drvdata;
+	unsigned int val, girq;
 
-	disable_irq_nosync(irq);
-	schedule_work(&drvdata->irq_work);
+	//handle system event
+	val = readb(drvdata->base + FN2_SEVSTAT);
 
+	if (val & PGOOD_MASK) {
+		girq = irq_find_mapping(drvdata->gpio_chip.irq.domain, PGOOD);
+		generic_handle_irq(girq);
+	}
+/*
+ *	if (val & PERST_MASK) {
+ *		girq = irq_find_mapping(drvdata->gpio_chip.irq.domain, PERST);
+ *		generic_handle_irq(girq);
+ *	}
+ */
 	return IRQ_HANDLED;
 }
+
+const static struct gpio_chip fn2_chip = {
+	.label			= "gxp-fn2",
+	.owner			= THIS_MODULE,
+	.get			= gxp_fn2_gpio_get,
+	.set			= gxp_fn2_gpio_set,
+	.get_direction = gxp_fn2_gpio_get_direction,
+	.direction_input = gxp_fn2_gpio_direction_input,
+	.direction_output = gxp_fn2_gpio_direction_output,
+	.base = -1,
+	//.can_sleep		= true,
+};
+
+static struct irq_chip gxp_gpio_irqchip = {
+	.name		= "gxp-fn2",
+	.irq_ack	= gxp_fn2_gpio_irq_ack,
+	.irq_mask	= gxp_fn2_gpio_irq_mask,
+	.irq_unmask	= gxp_fn2_gpio_irq_unmask,
+	.irq_set_type	= gxp_fn2_gpio_set_type,
+};
+
+static const struct of_device_id gxp_fn2_of_match[] = {
+	{ .compatible = "hpe,gxp-fn2" },
+	{},
+};
+MODULE_DEVICE_TABLE(of, gxp_fn2_of_match);
 
 static int gxp_fn2_probe(struct platform_device *pdev)
 {
@@ -228,7 +245,6 @@ static int gxp_fn2_probe(struct platform_device *pdev)
 	if (!drvdata)
 		return -ENOMEM;
 
-	drvdata->pdev = pdev;
 	platform_set_drvdata(pdev, drvdata);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -236,32 +252,53 @@ static int gxp_fn2_probe(struct platform_device *pdev)
 	if (IS_ERR(drvdata->base))
 		return PTR_ERR(drvdata->base);
 
-	mutex_init(&drvdata->mutex);
-	sysfs_register(&pdev->dev, drvdata);
+	drvdata->fn2_map = syscon_regmap_lookup_by_compatible("hpe,gxp-fn2");
+	if (IS_ERR(drvdata->fn2_map)) {
+		dev_err(&pdev->dev, "Unable to find fn2 regmap\n");
+		return PTR_ERR(drvdata->fn2_map);
+	}
+
+	drvdata->xreg_map = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+							"xreg_handle");
+	if (IS_ERR(drvdata->xreg_map)) {
+		dev_err(&pdev->dev, "failed to map xreg_handle\n");
+		return -ENODEV;
+	}
+
+	drvdata->gpio_chip = fn2_chip;
+	drvdata->gpio_chip.ngpio = 100;
+	drvdata->gpio_chip.parent = &pdev->dev;
+
+	ret = devm_gpiochip_add_data(&pdev->dev, &drvdata->gpio_chip, NULL);
+	if (ret < 0)
+		dev_err(&pdev->dev, "Could not register gpiochip for fn2, %d\n", ret);
+
+	ret = gpiochip_irqchip_add(&drvdata->gpio_chip,
+	&gxp_gpio_irqchip, 0, handle_edge_irq, IRQ_TYPE_NONE);
+	if (ret) {
+		dev_info(&pdev->dev, "Could not add irqchip - %d\n", ret);
+		gpiochip_remove(&drvdata->gpio_chip);
+		return ret;
+	}
+
+	// Set up interrupt from fn2 system event reg
 
 	ret = platform_get_irq(pdev, 0);
 	if (ret < 0) {
-		dev_err(&pdev->dev, "irq request failed\n");
+		dev_err(&pdev->dev, "Get irq from platform fail - %d\n", ret);
 		return ret;
 	}
 	drvdata->irq = ret;
 
-	INIT_WORK(&drvdata->irq_work, fn2_irq_work);
-	ret = devm_request_irq(&pdev->dev, drvdata->irq, fn2_irq_handle,
-				IRQF_SHARED, "fn2", drvdata);
+	ret = devm_request_irq(&pdev->dev, drvdata->irq, gxp_fn2_irq_handle,
+							IRQF_SHARED, "gxp-fn2", drvdata);
 	if (ret < 0) {
-		dev_err(&pdev->dev, "irq request failed\n");
+		dev_err(&pdev->dev, "IRQ handler failed - %d\n", ret);
 		return ret;
 	}
 
-	return ret;
+	return 0;
 }
-
-static const struct of_device_id gxp_fn2_of_match[] = {
-	{ .compatible = "hpe,gxp-fn2" },
-	{},
-};
-MODULE_DEVICE_TABLE(of, gxp_fn2_of_match);
 
 static struct platform_driver gxp_fn2_driver = {
 	.probe = gxp_fn2_probe,
