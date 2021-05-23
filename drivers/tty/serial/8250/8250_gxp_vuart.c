@@ -288,7 +288,7 @@ static int gxp_vuart_handle_irq(struct uart_port *port)
 	spin_unlock_irqrestore(&port->lock, flags);
 
 	if (handled == 0)
-		pr_info("VUART IRQ NO HANLDED ...\n");
+		pr_info("VUART IRQ NO HANDLED ...\n");
 	return 1;
 }
 

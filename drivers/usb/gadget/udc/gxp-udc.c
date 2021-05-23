@@ -201,7 +201,7 @@ static int gxp_udc_done_dma(struct gxp_udc_ep *ep, struct gxp_udc_req *req)
 	req->req.actual = req->req.length - len;
 
 	if (len && ep->is_in) {
-		//remaing data to send, rearm again
+		//remaining data to send, rearm again
 		writel(len, ep->base + EVDEPLEN);
 		return 0;
 	}
@@ -370,7 +370,7 @@ static int gxp_udc_ep_queue(struct usb_ep *_ep, struct usb_request *_req,
 		ep->is_in = (val&EVDEPCC_CFGINOUT)?1:0;
 
 		if (!_req->length) {
-			// ep0 control write tansaction no data stage.
+			// ep0 control write transaction no data stage.
 			_req->status = 0;
 
 			if (_req->complete) {
@@ -490,7 +490,7 @@ static int gxp_udc_ep_enable(struct usb_ep *_ep,
 	ep->stall = false;
 	ep->wedged = false;
 
-	//setup ep accroding to the setting of desc
+	//setup ep according to the setting of desc
 	gxp_udc_ep_init(ep, usb_endpoint_type(desc), usb_endpoint_dir_in(desc),
 			usb_endpoint_maxp(desc));
 
@@ -1022,8 +1022,8 @@ static void gxp_udc_handle_setup_data_rcv(struct gxp_udc_drvdata *drvdata)
 			pr_debug("vdev%d get setup data USB_REQ_SET_ADDRESS\n",
 				drvdata->vdevnum);
 			/* this request is unique in that the device does
-			 * not set its address until after the completetion
-			 *  of the status stage.(ref: usb nutshell)
+			 * not set its address until after the completion
+			 * of the status stage.(ref: usb nutshell)
 			 */
 			drvdata->devaddr = ctrl.wValue & 0x7f;
 			drvdata->deffer_set_address = true;

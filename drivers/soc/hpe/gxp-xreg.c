@@ -279,7 +279,7 @@ static void gxp_gpio_xreg_set(struct gpio_chip *chip,
 
 static int gxp_gpio_xreg_get_direction(struct gpio_chip *chip, unsigned int offset)
 {
-	int ret = 0;
+	int ret = GPIO_DIR_IN;
 
 	switch (offset) {
 	case IOP_LED1 ... IOP_LED8:
@@ -287,15 +287,6 @@ static int gxp_gpio_xreg_get_direction(struct gpio_chip *chip, unsigned int offs
 	case ACM_FORCE_OFF:
 	case ACM_REQ_N:
 		ret = GPIO_DIR_OUT;
-		break;
-	case FAN1_INST ... FAN16_INST:
-	case FAN1_FAIL ... FAN16_FAIL:
-	case FAN1_ID ... FAN16_ID:
-	case ACM_REMOVED:
-		ret = GPIO_DIR_IN;
-		break;
-	case 59 ... 65:
-		ret = GPIO_DIR_IN;
 		break;
 	default:
 		break;
@@ -329,8 +320,9 @@ static int gxp_gpio_xreg_direction_output(struct gpio_chip *chip,
 	int ret = -ENOTSUPP;
 
 	switch (offset) {
-	case 0 ... 7:
-	case 56 ... 58:
+	case IOP_LED1 ... IOP_LED8:
+	case LED_IDENTIFY ... LED_HEALTH_AMBER:
+	case ACM_FORCE_OFF:
 	case ACM_REQ_N:
 		gxp_gpio_xreg_set(chip, offset, value);
 		ret = 0;
