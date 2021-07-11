@@ -259,20 +259,11 @@ static int vuhc_gpio_get(struct gpio_chip *chip, unsigned int offset)
 	unsigned int val;
 	int ret = 0;
 
-	switch (offset) {
-	case 0:
-		//offset 0x64 bit 13
-		regmap_read(drvdata->vuhc0_map, 0x64,	&val);
-		ret = (val&BIT(13))?1:0;
-		break;
-	case 1:
-		//offset 0x68 bit 13
-		regmap_read(drvdata->vuhc0_map, 0x68,	&val);
-		ret = (val&BIT(13))?1:0;
-	default:
-		break;
+	if ( offset < 8 ) 
+	{
+		regmap_read(drvdata->vuhc0_map, 0x64 + 4 * offset,   &val);
+	        ret = (val&BIT(13))?1:0;
 	}
-
 	return ret;
 }
 
@@ -295,6 +286,7 @@ static int vuhc_gpio_get_direction(struct gpio_chip *chip,
 	switch (offset) {
 	case 0:
 	case 1:
+	case 2:
 		ret = GPIO_DIR_IN;
 		break;
 	default:
@@ -312,6 +304,7 @@ static int vuhc_gpio_direction_input(struct gpio_chip *chip,
 	switch (offset) {
 	case 0:
 	case 1:
+ 	case 2:
 		ret = 0;
 		break;
 	default:
