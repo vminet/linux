@@ -10,6 +10,8 @@
   };
 
   aliases {
+    ethernet0 = &umac0;
+    ethernet1 = &umac1;
   };
 
   memory@40000000 {
